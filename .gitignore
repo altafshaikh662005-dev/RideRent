@@ -1,0 +1,10 @@
+﻿target/
+*.log
+*.zip
+.env
+.env.*
+!.env.example
+.idea/
+*.iml
+*-startup-error.txt
+*.java~
