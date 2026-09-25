@@ -60,7 +60,11 @@ pipeline {
 
         stage('Maven clean test package') {
             steps {
-                bat 'mvn clean test package'
+                bat '''
+                    mvn -B clean test package
+                    if not exist "user-service\\target\\user-service-1.0.0.jar" exit /b 1
+                    if not exist "booking-service\\target\\booking-service-1.0.0.jar" exit /b 1
+                '''
             }
         }
 
