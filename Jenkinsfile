@@ -1,5 +1,40 @@
+def invokeDocker(String arguments, boolean failOnError = true) {
+    def status = powershell(returnStatus: true, script: """
+        \$ErrorActionPreference = 'Stop'
+        \$dockerPath = \$env:DOCKER_EXE
+        if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
+            \$dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
+            if (\$null -ne \$dockerCommand) {
+                \$dockerPath = \$dockerCommand.Source
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
+            \$candidates = @(
+                (Join-Path \$env:ProgramFiles 'Docker\\Docker\\resources\\bin\\docker.exe'),
+                (Join-Path \$env:ProgramFiles 'DockerDesktop\\resources\\bin\\docker.exe'),
+                (Join-Path \$env:LOCALAPPDATA 'Programs\\DockerDesktop\\resources\\bin\\docker.exe')
+            )
+            \$dockerPath = \$candidates | Where-Object { Test-Path -LiteralPath \$_ } | Select-Object -First 1
+        }
+        if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
+            Write-Error 'Docker executable was not found. Configure DOCKER_EXE or add Docker to the Jenkins service PATH.'
+            exit 127
+        }
+        & \$dockerPath ${arguments}
+        exit \$LASTEXITCODE
+    """)
+    if (failOnError && status != 0) {
+        error "Docker command failed with exit code ${status}: ${arguments}"
+    }
+    return status
+}
+
 pipeline {
     agent any
+
+    tools {
+        maven 'Maven'
+    }
 
     options {
         skipDefaultCheckout(true)
@@ -24,31 +59,39 @@ pipeline {
 
         stage('Maven clean test package') {
             steps {
-                bat 'mvn.cmd clean test package'
+                bat 'mvn clean test package'
             }
         }
 
         stage('Validate docker-compose.yml') {
             steps {
-                bat 'docker compose config --quiet'
+                script {
+                    invokeDocker('compose config --quiet')
+                }
             }
         }
 
         stage('Build user-service Docker image') {
             steps {
-                bat 'docker compose build user-service'
+                script {
+                    invokeDocker('compose build user-service')
+                }
             }
         }
 
         stage('Build booking-service Docker image') {
             steps {
-                bat 'docker compose build booking-service'
+                script {
+                    invokeDocker('compose build booking-service')
+                }
             }
         }
 
         stage('Start Docker Compose stack') {
             steps {
-                bat 'docker compose up -d'
+                script {
+                    invokeDocker('compose up -d')
+                }
             }
         }
 
@@ -56,7 +99,8 @@ pipeline {
             steps {
                 powershell '''
                     $ErrorActionPreference = 'Stop'
-                    & './start-riderrent.ps1' -SkipComposeStart
+                    $scriptPath = Join-Path (Get-Location) 'start-riderrent.ps1'
+                    & $scriptPath -SkipComposeStart
                     if ($LASTEXITCODE -ne 0) {
                         throw "RideRent-New verification failed with exit code $LASTEXITCODE."
                     }
@@ -73,7 +117,13 @@ pipeline {
             echo 'RideRent-New Jenkins pipeline failed. Inspect the stage output and Compose logs.'
         }
         always {
-            bat 'docker compose down --remove-orphans'
+            script {
+                if (getContext(hudson.FilePath) != null) {
+                    invokeDocker('compose down --remove-orphans', false)
+                } else {
+                    echo 'Skipping Docker Compose cleanup because the Jenkins workspace is no longer available.'
+                }
+            }
         }
     }
 }

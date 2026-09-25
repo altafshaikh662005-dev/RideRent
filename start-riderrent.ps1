@@ -121,14 +121,14 @@ try {
         throw 'Docker Engine is unavailable. Start Docker Desktop and run this script again.'
     }
 
+    if ([string]::IsNullOrWhiteSpace($env:DB_USERNAME)) {
+        throw 'DB_USERNAME is not set. Configure the Jenkins DB username credential or set DB_USERNAME for local execution.'
+    }
     if ([string]::IsNullOrWhiteSpace($env:DB_PASSWORD)) {
-        $env:DB_PASSWORD = 'RideRentLocalDb_2026!'
+        throw 'DB_PASSWORD is not set. Configure the Jenkins DB password credential or set DB_PASSWORD for local execution.'
     }
     if ([string]::IsNullOrWhiteSpace($env:JWT_SECRET)) {
-        $env:JWT_SECRET = 'RideRentLocalJwtSecret_2026_change-me'
-    }
-    if ([string]::IsNullOrWhiteSpace($env:DB_USERNAME)) {
-        $env:DB_USERNAME = 'root'
+        throw 'JWT_SECRET is not set. Configure the Jenkins JWT secret credential or set JWT_SECRET for local execution.'
     }
     if ([string]::IsNullOrWhiteSpace($env:RATE_LIMIT_REQUESTS_PER_MINUTE)) {
         $env:RATE_LIMIT_REQUESTS_PER_MINUTE = '60'
