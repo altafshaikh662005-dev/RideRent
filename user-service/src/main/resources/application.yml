@@ -4,9 +4,9 @@ spring:
   application:
     name: user-service
   datasource:
-    url: jdbc:mysql://localhost:3306/user_db
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/user_db}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD:?DB_PASSWORD must be set}
   jpa:
     hibernate:
       ddl-auto: update
@@ -14,8 +14,15 @@ spring:
   jackson:
     default-property-inclusion: non_null
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:?JWT_SECRET must be set}
   expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+rate-limit:
+  requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:60}

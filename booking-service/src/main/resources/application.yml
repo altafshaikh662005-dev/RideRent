@@ -4,9 +4,9 @@ spring:
   application:
     name: booking-service
   datasource:
-    url: jdbc:mysql://localhost:3306/booking_db
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/booking_db}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD:?DB_PASSWORD must be set}
   jpa:
     hibernate:
       ddl-auto: update
@@ -14,7 +14,14 @@ spring:
 user-service:
   url: ${USER_SERVICE_URL:http://localhost:8081}
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:?JWT_SECRET must be set}
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+rate-limit:
+  requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:60}

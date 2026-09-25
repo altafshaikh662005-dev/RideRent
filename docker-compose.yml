@@ -1,0 +1,97 @@
+services:
+  mysql-user:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: user_db
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    ports:
+      - "3307:3306"
+    volumes:
+      - user-db-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mysql-booking:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: booking_db
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    ports:
+      - "3308:3306"
+    volumes:
+      - booking-db-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  user-service:
+    build: ./user-service
+    image: riderrent/user-service:local
+    ports:
+      - "8081:8081"
+    environment:
+      DB_HOST: mysql-user
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+    depends_on:
+      mysql-user:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:8081/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  booking-service:
+    build: ./booking-service
+    image: riderrent/booking-service:local
+    ports:
+      - "8082:8082"
+    environment:
+      DB_HOST: mysql-booking
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      USER_SERVICE_URL: http://user-service:8081
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+    depends_on:
+      mysql-booking:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:8082/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  user-db-data:
+  booking-db-data:
