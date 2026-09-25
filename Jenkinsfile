@@ -10,6 +10,7 @@ def invokeDocker(String arguments, boolean failOnError = true) {
         }
         if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
             \$candidates = @(
+                'C:/Users/Altaf Shaikh/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe',
                 (Join-Path \$env:ProgramFiles 'Docker\\Docker\\resources\\bin\\docker.exe'),
                 (Join-Path \$env:ProgramFiles 'DockerDesktop\\resources\\bin\\docker.exe'),
                 (Join-Path \$env:LOCALAPPDATA 'Programs\\DockerDesktop\\resources\\bin\\docker.exe')
