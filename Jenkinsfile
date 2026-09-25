@@ -56,7 +56,7 @@ pipeline {
             steps {
                 powershell '''
                     $ErrorActionPreference = 'Stop'
-                    & .\start-riderrent.ps1 -SkipComposeStart
+                    & './start-riderrent.ps1' -SkipComposeStart
                     if ($LASTEXITCODE -ne 0) {
                         throw "RideRent-New verification failed with exit code $LASTEXITCODE."
                     }
