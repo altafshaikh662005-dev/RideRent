@@ -61,9 +61,20 @@ pipeline {
         stage('Maven clean test package') {
             steps {
                 bat '''
+                    java -version
+                    mvn -version
                     mvn -B clean test package
-                    if not exist "user-service\\target\\user-service-1.0.0.jar" exit /b 1
-                    if not exist "booking-service\\target\\booking-service-1.0.0.jar" exit /b 1
+                    if not exist "user-service\\target\\user-service-1.0.0.jar" (
+                        echo ERROR: Missing user-service\\target\\user-service-1.0.0.jar
+                        exit /b 1
+                    )
+                    if not exist "booking-service\\target\\booking-service-1.0.0.jar" (
+                        echo ERROR: Missing booking-service\\target\\booking-service-1.0.0.jar
+                        exit /b 1
+                    )
+                    echo Generated JAR files:
+                    dir /-C "user-service\\target\\user-service-1.0.0.jar"
+                    dir /-C "booking-service\\target\\booking-service-1.0.0.jar"
                 '''
             }
         }
