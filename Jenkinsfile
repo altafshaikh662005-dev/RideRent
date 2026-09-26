@@ -1,57 +1,3 @@
-def invokeDocker(String arguments, boolean failOnError = true) {
-    def status = powershell(
-        returnStatus: true,
-        script: """
-            \$ErrorActionPreference = 'Stop'
-
-            \$dockerPath = \$env:DOCKER_EXE
-
-            if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
-                \$dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
-                if (\$null -ne \$dockerCommand) {
-                    \$dockerPath = \$dockerCommand.Source
-                }
-            }
-
-            if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
-                \$candidates = @(
-                    'C:/Users/Altaf Shaikh/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe',
-                    (Join-Path \$env:ProgramFiles 'Docker\\Docker\\resources\\bin\\docker.exe'),
-                    (Join-Path \$env:ProgramFiles 'DockerDesktop\\resources\\bin\\docker.exe'),
-                    (Join-Path \$env:LOCALAPPDATA 'Programs\\DockerDesktop\\resources\\bin\\docker.exe')
-                )
-
-                \$dockerPath = \$candidates |
-                    Where-Object { Test-Path -LiteralPath \$_ } |
-                    Select-Object -First 1
-            }
-
-            if ([string]::IsNullOrWhiteSpace(\$dockerPath)) {
-                Write-Error 'Docker executable was not found.'
-                exit 127
-            }
-
-            # IMPORTANT:
-            # Split Docker arguments into separate arguments.
-            \$dockerArgs = \$arguments -split '\\s+'
-
-            Write-Host "Docker: \$dockerPath"
-            Write-Host "Arguments: \$arguments"
-
-            & \$dockerPath @dockerArgs
-
-            exit \$LASTEXITCODE
-        """
-    )
-
-    if (failOnError && status != 0) {
-        error "Docker command failed with exit code ${status}: ${arguments}"
-    }
-
-    return status
-}
-
-
 pipeline {
     agent any
 
@@ -72,6 +18,8 @@ pipeline {
 
         RATE_LIMIT_REQUESTS_PER_MINUTE = '60'
         COMPOSE_PROJECT_NAME = "riderrent-jenkins-${BUILD_NUMBER}"
+
+        DOCKER_EXE = 'C:\\Users\\Altaf Shaikh\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
     }
 
     stages {
@@ -112,14 +60,16 @@ pipeline {
                     echo ========================================
 
                     if not exist "user-service\\target\\user-service-1.0.0.jar" (
-                        echo ERROR: Missing user-service\\target\\user-service-1.0.0.jar
-                        echo Maven did not generate the required user-service JAR.
+                        echo ERROR: user-service JAR NOT FOUND
+                        echo Expected:
+                        echo user-service\\target\\user-service-1.0.0.jar
                         exit /b 1
                     )
 
                     if not exist "booking-service\\target\\booking-service-1.0.0.jar" (
-                        echo ERROR: Missing booking-service\\target\\booking-service-1.0.0.jar
-                        echo Maven did not generate the required booking-service JAR.
+                        echo ERROR: booking-service JAR NOT FOUND
+                        echo Expected:
+                        echo booking-service\\target\\booking-service-1.0.0.jar
                         exit /b 1
                     )
 
@@ -138,42 +88,91 @@ pipeline {
         }
 
 
-        stage('Validate docker-compose.yml') {
+        stage('Validate Docker Compose') {
             steps {
-                script {
-                    echo 'Validating Docker Compose configuration...'
-                    invokeDocker('compose config --quiet')
-                }
+                bat '''
+                    echo ========================================
+                    echo DOCKER VERSION
+                    echo ========================================
+                    "%DOCKER_EXE%" version
+
+                    echo ========================================
+                    echo DOCKER COMPOSE VERSION
+                    echo ========================================
+                    "%DOCKER_EXE%" compose version
+
+                    echo ========================================
+                    echo VALIDATING DOCKER COMPOSE
+                    echo ========================================
+                    "%DOCKER_EXE%" compose config -q
+
+                    if errorlevel 1 (
+                        echo ERROR: Docker Compose configuration is invalid.
+                        exit /b 1
+                    )
+
+                    echo Docker Compose configuration is valid.
+                '''
             }
         }
 
 
         stage('Build user-service Docker image') {
             steps {
-                script {
-                    echo 'Building user-service Docker image...'
-                    invokeDocker('compose build user-service')
-                }
+                bat '''
+                    echo ========================================
+                    echo BUILDING USER-SERVICE DOCKER IMAGE
+                    echo ========================================
+
+                    "%DOCKER_EXE%" compose build user-service
+
+                    if errorlevel 1 (
+                        echo ERROR: user-service Docker build failed.
+                        exit /b 1
+                    )
+
+                    echo user-service Docker image built successfully.
+                '''
             }
         }
 
 
         stage('Build booking-service Docker image') {
             steps {
-                script {
-                    echo 'Building booking-service Docker image...'
-                    invokeDocker('compose build booking-service')
-                }
+                bat '''
+                    echo ========================================
+                    echo BUILDING BOOKING-SERVICE DOCKER IMAGE
+                    echo ========================================
+
+                    "%DOCKER_EXE%" compose build booking-service
+
+                    if errorlevel 1 (
+                        echo ERROR: booking-service Docker build failed.
+                        exit /b 1
+                    )
+
+                    echo booking-service Docker image built successfully.
+                '''
             }
         }
 
 
         stage('Start Docker Compose stack') {
             steps {
-                script {
-                    echo 'Starting Docker Compose stack...'
-                    invokeDocker('compose up -d')
-                }
+                bat '''
+                    echo ========================================
+                    echo STARTING RIDERENT DOCKER STACK
+                    echo ========================================
+
+                    "%DOCKER_EXE%" compose up -d
+
+                    if errorlevel 1 (
+                        echo ERROR: Docker Compose startup failed.
+                        exit /b 1
+                    )
+
+                    echo Docker Compose stack started successfully.
+                '''
             }
         }
 
@@ -189,6 +188,10 @@ pipeline {
 
                     $scriptPath = Join-Path (Get-Location) 'start-riderrent.ps1'
 
+                    if (-not (Test-Path $scriptPath)) {
+                        throw "start-riderrent.ps1 was not found."
+                    }
+
                     & $scriptPath -SkipComposeStart
 
                     if ($LASTEXITCODE -ne 0) {
@@ -196,7 +199,7 @@ pipeline {
                     }
 
                     Write-Host "========================================"
-                    Write-Host "RIDERRRENT VERIFICATION SUCCESSFUL"
+                    Write-Host "RIDERENT VERIFICATION SUCCESSFUL"
                     Write-Host "========================================"
                 '''
             }
@@ -220,14 +223,19 @@ pipeline {
         }
 
         always {
-            script {
-                if (getContext(hudson.FilePath) != null) {
-                    echo 'Cleaning up Docker Compose stack...'
-                    invokeDocker('compose down --remove-orphans', false)
-                } else {
-                    echo 'Skipping Docker cleanup because Jenkins workspace is unavailable.'
-                }
-            }
+            bat '''
+                echo ========================================
+                echo DOCKER COMPOSE CLEANUP
+                echo ========================================
+
+                "%DOCKER_EXE%" compose down --remove-orphans
+
+                if errorlevel 1 (
+                    echo WARNING: Docker Compose cleanup returned an error.
+                ) else (
+                    echo Docker Compose cleanup completed.
+                )
+            '''
         }
     }
 }
