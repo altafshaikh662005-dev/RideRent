@@ -24,135 +24,282 @@ pipeline {
 
     stages {
 
+        // ============================================================
+        // CHECKOUT
+        // ============================================================
         stage('Checkout') {
             steps {
                 echo '===== CHECKOUT ====='
+
                 checkout scm
             }
         }
 
+
+        // ============================================================
+        // MAVEN BUILD
+        // ============================================================
         stage('Maven Build') {
             steps {
                 bat '''
-                    echo ===== JAVA =====
+                    echo ========================================
+                    echo JAVA VERSION
+                    echo ========================================
                     java -version
 
-                    echo ===== MAVEN =====
+                    echo ========================================
+                    echo MAVEN VERSION
+                    echo ========================================
                     call mvn -version
 
-                    echo ===== MAVEN BUILD START =====
+                    echo ========================================
+                    echo MAVEN BUILD START
+                    echo ========================================
                     call mvn -B clean test package
 
                     if errorlevel 1 (
-                        echo ===== MAVEN BUILD FAILED =====
+                        echo ========================================
+                        echo MAVEN BUILD FAILED
+                        echo ========================================
                         exit /b 1
                     )
 
-                    echo ===== CHECK USER SERVICE JAR =====
+                    echo ========================================
+                    echo CHECKING USER SERVICE JAR
+                    echo ========================================
+
                     if not exist "user-service\\target\\user-service-1.0.0.jar" (
                         echo ERROR: user-service JAR NOT FOUND
+                        echo Contents of user-service target:
                         dir "user-service\\target"
                         exit /b 1
                     )
 
-                    echo ===== CHECK BOOKING SERVICE JAR =====
+                    echo ========================================
+                    echo CHECKING BOOKING SERVICE JAR
+                    echo ========================================
+
                     if not exist "booking-service\\target\\booking-service-1.0.0.jar" (
                         echo ERROR: booking-service JAR NOT FOUND
+                        echo Contents of booking-service target:
                         dir "booking-service\\target"
                         exit /b 1
                     )
 
-                    echo ===== JARS FOUND =====
+                    echo ========================================
+                    echo GENERATED JARS
+                    echo ========================================
+
                     dir "user-service\\target\\*.jar"
                     dir "booking-service\\target\\*.jar"
 
-                    echo ===== MAVEN BUILD SUCCESS =====
+                    echo ========================================
+                    echo MAVEN BUILD SUCCESS
+                    echo ========================================
                 '''
             }
         }
 
+
+        // ============================================================
+        // DOCKER ENVIRONMENT CHECK
+        // ============================================================
         stage('Docker Check') {
             steps {
                 bat '''
-                    echo ===== DOCKER VERSION =====
-                    "%DOCKER_EXE%" version
+                    echo ========================================
+                    echo JENKINS WINDOWS USER
+                    echo ========================================
+                    whoami
 
-                    echo ===== DOCKER COMPOSE VERSION =====
+                    echo ========================================
+                    echo DOCKER LOCATION
+                    echo ========================================
+                    where docker
+
+                    echo ========================================
+                    echo DOCKER EXECUTABLE
+                    echo ========================================
+                    echo %DOCKER_EXE%
+
+                    if not exist "%DOCKER_EXE%" (
+                        echo ========================================
+                        echo ERROR: DOCKER EXECUTABLE NOT FOUND
+                        echo ========================================
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo DOCKER VERSION
+                    echo ========================================
+                    "%DOCKER_EXE%" --version
+
+                    if errorlevel 1 (
+                        echo ERROR: Docker version command failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo DOCKER COMPOSE VERSION
+                    echo ========================================
                     "%DOCKER_EXE%" compose version
+
+                    if errorlevel 1 (
+                        echo ERROR: Docker Compose command failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo DOCKER CONTEXT
+                    echo ========================================
+                    "%DOCKER_EXE%" context show
+
+                    if errorlevel 1 (
+                        echo ERROR: Docker context command failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo DOCKER INFO
+                    echo ========================================
+                    "%DOCKER_EXE%" info
+
+                    if errorlevel 1 (
+                        echo ========================================
+                        echo DOCKER ENGINE CONNECTION FAILED
+                        echo ========================================
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo DOCKER CHECK SUCCESS
+                    echo ========================================
                 '''
             }
         }
 
+
+        // ============================================================
+        // VALIDATE DOCKER COMPOSE
+        // ============================================================
         stage('Validate Docker Compose') {
             steps {
                 bat '''
-                    echo ===== VALIDATING COMPOSE =====
+                    echo ========================================
+                    echo VALIDATING DOCKER COMPOSE
+                    echo ========================================
+
                     "%DOCKER_EXE%" compose config -q
 
                     if errorlevel 1 (
-                        echo ===== COMPOSE VALIDATION FAILED =====
+                        echo ========================================
+                        echo COMPOSE VALIDATION FAILED
+                        echo ========================================
                         exit /b 1
                     )
 
-                    echo ===== COMPOSE VALIDATION SUCCESS =====
+                    echo ========================================
+                    echo COMPOSE VALIDATION SUCCESS
+                    echo ========================================
                 '''
             }
         }
 
+
+        // ============================================================
+        // BUILD USER SERVICE IMAGE
+        // ============================================================
         stage('Build user-service Docker image') {
             steps {
                 bat '''
-                    echo ===== BUILDING USER SERVICE =====
+                    echo ========================================
+                    echo BUILDING USER SERVICE DOCKER IMAGE
+                    echo ========================================
+
                     "%DOCKER_EXE%" compose build user-service
 
                     if errorlevel 1 (
-                        echo ===== USER SERVICE DOCKER BUILD FAILED =====
+                        echo ========================================
+                        echo USER SERVICE DOCKER BUILD FAILED
+                        echo ========================================
                         exit /b 1
                     )
 
-                    echo ===== USER SERVICE IMAGE SUCCESS =====
+                    echo ========================================
+                    echo USER SERVICE IMAGE BUILD SUCCESS
+                    echo ========================================
                 '''
             }
         }
 
+
+        // ============================================================
+        // BUILD BOOKING SERVICE IMAGE
+        // ============================================================
         stage('Build booking-service Docker image') {
             steps {
                 bat '''
-                    echo ===== BUILDING BOOKING SERVICE =====
+                    echo ========================================
+                    echo BUILDING BOOKING SERVICE DOCKER IMAGE
+                    echo ========================================
+
                     "%DOCKER_EXE%" compose build booking-service
 
                     if errorlevel 1 (
-                        echo ===== BOOKING SERVICE DOCKER BUILD FAILED =====
+                        echo ========================================
+                        echo BOOKING SERVICE DOCKER BUILD FAILED
+                        echo ========================================
                         exit /b 1
                     )
 
-                    echo ===== BOOKING SERVICE IMAGE SUCCESS =====
+                    echo ========================================
+                    echo BOOKING SERVICE IMAGE BUILD SUCCESS
+                    echo ========================================
                 '''
             }
         }
 
+
+        // ============================================================
+        // START DOCKER COMPOSE
+        // ============================================================
         stage('Start Docker Compose') {
             steps {
                 bat '''
-                    echo ===== STARTING DOCKER COMPOSE =====
+                    echo ========================================
+                    echo STARTING DOCKER COMPOSE
+                    echo ========================================
+
                     "%DOCKER_EXE%" compose up -d
 
                     if errorlevel 1 (
-                        echo ===== DOCKER COMPOSE START FAILED =====
+                        echo ========================================
+                        echo DOCKER COMPOSE START FAILED
+                        echo ========================================
                         exit /b 1
                     )
 
-                    echo ===== DOCKER COMPOSE STARTED =====
+                    echo ========================================
+                    echo DOCKER COMPOSE STARTED
+                    echo ========================================
+
+                    "%DOCKER_EXE%" compose ps
                 '''
             }
         }
 
+
+        // ============================================================
+        // VERIFY SERVICES
+        // ============================================================
         stage('Verify Services') {
             steps {
                 powershell '''
                     $ErrorActionPreference = "Stop"
 
-                    Write-Host "===== VERIFYING RIDERENT ====="
+                    Write-Host "========================================"
+                    Write-Host "VERIFYING RIDERENT SERVICES"
+                    Write-Host "========================================"
 
                     $scriptPath = Join-Path (Get-Location) "start-riderrent.ps1"
 
@@ -160,32 +307,59 @@ pipeline {
                         throw "start-riderrent.ps1 was not found."
                     }
 
+                    Write-Host "Verification script:"
+                    Write-Host $scriptPath
+
                     & $scriptPath -SkipComposeStart
 
                     if ($LASTEXITCODE -ne 0) {
                         throw "RideRent verification failed with exit code $LASTEXITCODE."
                     }
 
-                    Write-Host "===== VERIFICATION SUCCESS ====="
+                    Write-Host "========================================"
+                    Write-Host "VERIFICATION SUCCESS"
+                    Write-Host "========================================"
                 '''
             }
         }
     }
 
+
+    // ================================================================
+    // POST BUILD
+    // ================================================================
     post {
 
         success {
-            echo '===== RIDERENT PIPELINE SUCCESS ====='
+            echo '========================================'
+            echo 'RIDERRRENT PIPELINE SUCCESS'
+            echo '========================================'
         }
 
         failure {
-            echo '===== RIDERENT PIPELINE FAILED ====='
+            echo '========================================'
+            echo 'RIDERRRENT PIPELINE FAILED'
+            echo 'Check the failed stage above.'
+            echo '========================================'
         }
 
         always {
             bat '''
-                echo ===== DOCKER CLEANUP =====
+                echo ========================================
+                echo DOCKER CLEANUP
+                echo ========================================
+
                 "%DOCKER_EXE%" compose down --remove-orphans
+
+                if errorlevel 1 (
+                    echo Docker cleanup failed or Docker was not available.
+                ) else (
+                    echo Docker cleanup completed.
+                )
+
+                echo ========================================
+                echo CLEANUP FINISHED
+                echo ========================================
             '''
         }
     }
