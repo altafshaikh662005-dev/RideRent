@@ -26,169 +26,137 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out RideRent source code...'
+                echo '===== CHECKOUT ====='
                 checkout scm
             }
         }
 
-
-        stage('Maven clean test package') {
+        stage('Maven Build') {
             steps {
                 bat '''
-                    echo ========================================
-                    echo JAVA VERSION
-                    echo ========================================
+                    echo ===== JAVA =====
                     java -version
 
-                    echo ========================================
-                    echo MAVEN VERSION
-                    echo ========================================
+                    echo ===== MAVEN =====
                     call mvn -version
 
-                    echo ========================================
-                    echo RUNNING MAVEN BUILD
-                    echo ========================================
+                    echo ===== MAVEN BUILD START =====
                     call mvn -B clean test package
 
                     if errorlevel 1 (
-                        echo ERROR: Maven build failed.
+                        echo ===== MAVEN BUILD FAILED =====
                         exit /b 1
                     )
 
-                    echo ========================================
-                    echo VERIFYING GENERATED JARS
-                    echo ========================================
-
+                    echo ===== CHECK USER SERVICE JAR =====
                     if not exist "user-service\\target\\user-service-1.0.0.jar" (
                         echo ERROR: user-service JAR NOT FOUND
-                        echo Expected:
-                        echo user-service\\target\\user-service-1.0.0.jar
+                        dir "user-service\\target"
                         exit /b 1
                     )
 
+                    echo ===== CHECK BOOKING SERVICE JAR =====
                     if not exist "booking-service\\target\\booking-service-1.0.0.jar" (
                         echo ERROR: booking-service JAR NOT FOUND
-                        echo Expected:
-                        echo booking-service\\target\\booking-service-1.0.0.jar
+                        dir "booking-service\\target"
                         exit /b 1
                     )
 
-                    echo ========================================
-                    echo GENERATED JAR FILES
-                    echo ========================================
+                    echo ===== JARS FOUND =====
+                    dir "user-service\\target\\*.jar"
+                    dir "booking-service\\target\\*.jar"
 
-                    dir "user-service\\target\\user-service-1.0.0.jar"
-                    dir "booking-service\\target\\booking-service-1.0.0.jar"
-
-                    echo ========================================
-                    echo MAVEN BUILD SUCCESSFUL
-                    echo ========================================
+                    echo ===== MAVEN BUILD SUCCESS =====
                 '''
             }
         }
 
+        stage('Docker Check') {
+            steps {
+                bat '''
+                    echo ===== DOCKER VERSION =====
+                    "%DOCKER_EXE%" version
+
+                    echo ===== DOCKER COMPOSE VERSION =====
+                    "%DOCKER_EXE%" compose version
+                '''
+            }
+        }
 
         stage('Validate Docker Compose') {
             steps {
                 bat '''
-                    echo ========================================
-                    echo DOCKER VERSION
-                    echo ========================================
-                    "%DOCKER_EXE%" version
-
-                    echo ========================================
-                    echo DOCKER COMPOSE VERSION
-                    echo ========================================
-                    "%DOCKER_EXE%" compose version
-
-                    echo ========================================
-                    echo VALIDATING DOCKER COMPOSE
-                    echo ========================================
+                    echo ===== VALIDATING COMPOSE =====
                     "%DOCKER_EXE%" compose config -q
 
                     if errorlevel 1 (
-                        echo ERROR: Docker Compose configuration is invalid.
+                        echo ===== COMPOSE VALIDATION FAILED =====
                         exit /b 1
                     )
 
-                    echo Docker Compose configuration is valid.
+                    echo ===== COMPOSE VALIDATION SUCCESS =====
                 '''
             }
         }
-
 
         stage('Build user-service Docker image') {
             steps {
                 bat '''
-                    echo ========================================
-                    echo BUILDING USER-SERVICE DOCKER IMAGE
-                    echo ========================================
-
+                    echo ===== BUILDING USER SERVICE =====
                     "%DOCKER_EXE%" compose build user-service
 
                     if errorlevel 1 (
-                        echo ERROR: user-service Docker build failed.
+                        echo ===== USER SERVICE DOCKER BUILD FAILED =====
                         exit /b 1
                     )
 
-                    echo user-service Docker image built successfully.
+                    echo ===== USER SERVICE IMAGE SUCCESS =====
                 '''
             }
         }
-
 
         stage('Build booking-service Docker image') {
             steps {
                 bat '''
-                    echo ========================================
-                    echo BUILDING BOOKING-SERVICE DOCKER IMAGE
-                    echo ========================================
-
+                    echo ===== BUILDING BOOKING SERVICE =====
                     "%DOCKER_EXE%" compose build booking-service
 
                     if errorlevel 1 (
-                        echo ERROR: booking-service Docker build failed.
+                        echo ===== BOOKING SERVICE DOCKER BUILD FAILED =====
                         exit /b 1
                     )
 
-                    echo booking-service Docker image built successfully.
+                    echo ===== BOOKING SERVICE IMAGE SUCCESS =====
                 '''
             }
         }
 
-
-        stage('Start Docker Compose stack') {
+        stage('Start Docker Compose') {
             steps {
                 bat '''
-                    echo ========================================
-                    echo STARTING RIDERENT DOCKER STACK
-                    echo ========================================
-
+                    echo ===== STARTING DOCKER COMPOSE =====
                     "%DOCKER_EXE%" compose up -d
 
                     if errorlevel 1 (
-                        echo ERROR: Docker Compose startup failed.
+                        echo ===== DOCKER COMPOSE START FAILED =====
                         exit /b 1
                     )
 
-                    echo Docker Compose stack started successfully.
+                    echo ===== DOCKER COMPOSE STARTED =====
                 '''
             }
         }
 
-
-        stage('Verify services and APIs') {
+        stage('Verify Services') {
             steps {
                 powershell '''
-                    $ErrorActionPreference = 'Stop'
+                    $ErrorActionPreference = "Stop"
 
-                    Write-Host "========================================"
-                    Write-Host "VERIFYING RIDERENT SERVICES"
-                    Write-Host "========================================"
+                    Write-Host "===== VERIFYING RIDERENT ====="
 
-                    $scriptPath = Join-Path (Get-Location) 'start-riderrent.ps1'
+                    $scriptPath = Join-Path (Get-Location) "start-riderrent.ps1"
 
-                    if (-not (Test-Path $scriptPath)) {
+                    if (!(Test-Path $scriptPath)) {
                         throw "start-riderrent.ps1 was not found."
                     }
 
@@ -198,43 +166,26 @@ pipeline {
                         throw "RideRent verification failed with exit code $LASTEXITCODE."
                     }
 
-                    Write-Host "========================================"
-                    Write-Host "RIDERENT VERIFICATION SUCCESSFUL"
-                    Write-Host "========================================"
+                    Write-Host "===== VERIFICATION SUCCESS ====="
                 '''
             }
         }
     }
 
-
     post {
 
         success {
-            echo '========================================'
-            echo 'RideRent Jenkins pipeline completed successfully.'
-            echo '========================================'
+            echo '===== RIDERENT PIPELINE SUCCESS ====='
         }
 
         failure {
-            echo '========================================'
-            echo 'RideRent Jenkins pipeline FAILED.'
-            echo 'Check the failed stage above.'
-            echo '========================================'
+            echo '===== RIDERENT PIPELINE FAILED ====='
         }
 
         always {
             bat '''
-                echo ========================================
-                echo DOCKER COMPOSE CLEANUP
-                echo ========================================
-
+                echo ===== DOCKER CLEANUP =====
                 "%DOCKER_EXE%" compose down --remove-orphans
-
-                if errorlevel 1 (
-                    echo WARNING: Docker Compose cleanup returned an error.
-                ) else (
-                    echo Docker Compose cleanup completed.
-                )
             '''
         }
     }
